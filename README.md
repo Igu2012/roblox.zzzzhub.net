@@ -29,7 +29,8 @@ O proxy também encaminha `/games/start?placeId=...` para `https://play.roblox.c
 ## Reescritas
 
 - HTML, atributos de URL, `srcset`, estilos inline e CSS.
-- Fetch, XHR, WebSocket, EventSource, Worker e `sendBeacon` no shim do navegador.
+- JavaScript externo, incluindo URLs `https://` e `wss://` literais.
+- Fetch, XHR, WebSocket, EventSource, Worker, Service Worker, `window.open` e `sendBeacon` no shim do navegador.
 - `Location`, `Set-Cookie`, `Origin` e `Referer`.
 - CSP, HSTS, X-Frame-Options e políticas cross-origin incompatíveis com a entrega pelo proxy.
 - CORS para recursos encaminhados pelo proxy.
