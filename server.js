@@ -3,6 +3,8 @@ const http = require("http");
 const zlib = require("zlib");
 const { URL } = require("url");
 const httpProxy = require("http-proxy");
+const WebSocket = require("ws");
+const { WebSocketServer } = WebSocket;
 
 const { PORT, HOST, BASE, TARGET_ORIGIN, PLAY_ORIGIN, PROXY_PREFIX } = require("./lib/config");
 const { rewriteRequestHeaders, rewriteResponseHeaders } = require("./lib/headers");
@@ -32,15 +34,7 @@ function applyForge(proxyReq, req) {
   for (const k of Object.keys(proxyReq.getHeaders())) if (!(k in forged)) proxyReq.removeHeader(k);
   for (const [k, v] of Object.entries(forged)) if (v != null) proxyReq.setHeader(k, v);
 }
-function applyForgeWs(proxyReq, req) {
-  const forged = rewriteRequestHeaders(req.headers, req.__targetOrigin || "");
-  forged.connection = "Upgrade";
-  forged.upgrade = "websocket";
-  for (const k of Object.keys(proxyReq.getHeaders())) if (!(k in forged)) proxyReq.removeHeader(k);
-  for (const [k, v] of Object.entries(forged)) if (v != null) proxyReq.setHeader(k, v);
-}
 proxy.on("proxyReq", applyForge);
-proxy.on("proxyReqWs", applyForgeWs);
 
 function decodeBody(body, encoding) {
   const enc = (encoding || "").toLowerCase().trim();
@@ -107,16 +101,46 @@ const handler = (req, res) => {
 };
 
 const server = http.createServer(handler);
+const wss = new WebSocketServer({ noServer: true });
 
 server.on("upgrade", (req, socket, head) => {
   if (!req.url || !req.url.startsWith(PROXY_PREFIX)) { socket.destroy(); return; }
   let target;
   try { target = parseTarget(req.url); } catch { socket.destroy(); return; }
-  const httpOrigin = target.origin.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
-  req.__targetHref = target.href;
-  req.__targetOrigin = httpOrigin;
-  req.url = target.pathname + target.search;
-  proxy.ws(req, socket, head, { target: httpOrigin, changeOrigin: true, ws: true, prependPath: false });
+  if (!/^wss?:$/i.test(target.protocol)) { socket.destroy(); return; }
+
+  wss.handleUpgrade(req, socket, head, (client) => {
+    const upstreamOrigin = target.origin.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
+    const headers = rewriteRequestHeaders(req.headers, upstreamOrigin);
+    for (const name of ["host", "connection", "upgrade", "content-length", "sec-websocket-key", "sec-websocket-version", "sec-websocket-extensions", "sec-websocket-protocol"]) delete headers[name];
+    headers.origin = upstreamOrigin;
+    const protocols = req.headers["sec-websocket-protocol"]
+      ? req.headers["sec-websocket-protocol"].split(",").map(value => value.trim()).filter(Boolean)
+      : undefined;
+    const upstream = new WebSocket(target.href, protocols, { headers });
+    const pending = [];
+    let upstreamReady = false;
+    const closeBoth = () => {
+      if (client.readyState === WebSocket.OPEN || client.readyState === WebSocket.CONNECTING) client.close();
+      if (upstream.readyState === WebSocket.OPEN || upstream.readyState === WebSocket.CONNECTING) upstream.close();
+    };
+    client.on("message", (data, isBinary) => {
+      if (upstreamReady && upstream.readyState === WebSocket.OPEN) upstream.send(data, { binary: isBinary });
+      else pending.push([data, isBinary]);
+    });
+    client.on("close", () => { if (upstream.readyState === WebSocket.OPEN) upstream.close(); });
+    client.on("error", closeBoth);
+    upstream.on("open", () => {
+      upstreamReady = true;
+      for (const [data, isBinary] of pending) upstream.send(data, { binary: isBinary });
+      pending.length = 0;
+    });
+    upstream.on("message", (data, isBinary) => {
+      if (client.readyState === WebSocket.OPEN) client.send(data, { binary: isBinary });
+    });
+    upstream.on("close", () => { if (client.readyState === WebSocket.OPEN) client.close(); });
+    upstream.on("error", closeBoth);
+  });
 });
 
 if (require.main === module) {

@@ -6,7 +6,8 @@
   "scripts": { "start": "node server.js" },
   "dependencies": {
     "cheerio": "^1.0.0-rc.12",
-    "http-proxy": "^1.18.1"
+    "http-proxy": "^1.18.1",
+    "ws": "^8.18.0"
   },
   "engines": { "node": ">=18" }
 }
