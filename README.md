@@ -15,7 +15,7 @@ Abra `http://localhost:3000/`. O servidor aceita `PORT`, `HOST`, `BASE_URL`, `TA
 
 O repositório inclui `vercel.json` e `api/index.js`. Importe o repositório na Vercel como um projeto Node.js; não é necessário um build frontend separado. Se o projeto usar um domínio diferente, defina `BASE_URL` para a URL pública.
 
-A implantação na Vercel cobre requisições HTTP/HTTPS, HTML, CSS, JavaScript, cookies, redirects e o formato `/x/<URL-absoluta>`. Vercel Functions não mantém o upgrade WebSocket persistente necessário para `ws`/`wss`; portanto, o suporte real a WebSocket deve rodar em um processo Node persistente (o `server.js` continua compatível com Render, Railway, Fly.io ou VM). Não há como prometer `wss` persistente apenas com Vercel Functions.
+A implantação na Vercel cobre requisições HTTP/HTTPS, HTML, CSS, JavaScript, cookies, redirects e o formato `/x/<URL-absoluta>`. O entrypoint exporta o servidor Node completo, incluindo o evento `upgrade` para encaminhar `ws`/`wss`. WebSockets na Vercel exigem Fluid Compute habilitado no projeto e seguem os limites de duração e cobrança das Functions.
 
 ## Esquema de proxy
 
@@ -37,4 +37,4 @@ O proxy também encaminha `/games/start?placeId=...` para `https://play.roblox.c
 
 ## Limites
 
-O cliente 3D nativo do Roblox não é implementado pelo navegador. Cookies e armazenamento ficam no domínio do proxy. O endpoint `wss` funciona no modo Node persistente; na Vercel, use o deployment persistente para essa parte.
+O cliente 3D nativo do Roblox não é implementado pelo navegador. Cookies e armazenamento ficam no domínio do proxy. Conexões WebSocket precisam ser reconectadas pelo cliente quando atingirem o limite de duração da Function.
