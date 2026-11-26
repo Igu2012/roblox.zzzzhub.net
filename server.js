@@ -16,7 +16,8 @@ function parseTarget(raw) {
   const localizedLegacy = raw.match(/^\/(?:[a-z]{2}(?:-[a-z]{2})?)\/x\/(https?:\/\/.*)$/i);
   if (localizedLegacy) raw = PROXY_PREFIX + localizedLegacy[1];
   if (raw.startsWith(PROXY_PREFIX)) {
-    const target = new URL(raw.slice(PROXY_PREFIX.length));
+    const encodedTarget = raw.slice(PROXY_PREFIX.length);
+    const target = new URL(decodeURIComponent(encodedTarget));
     if (target.origin === BASE || /(^|\.)roblox-browser-proxy\.onrender\.com$/i.test(target.hostname)) {
       return new URL(target.pathname + target.search, TARGET_ORIGIN);
     }
