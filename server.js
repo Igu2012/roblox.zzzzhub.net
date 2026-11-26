@@ -32,8 +32,15 @@ function applyForge(proxyReq, req) {
   for (const k of Object.keys(proxyReq.getHeaders())) if (!(k in forged)) proxyReq.removeHeader(k);
   for (const [k, v] of Object.entries(forged)) if (v != null) proxyReq.setHeader(k, v);
 }
+function applyForgeWs(proxyReq, req) {
+  const forged = rewriteRequestHeaders(req.headers, req.__targetOrigin || "");
+  forged.connection = "Upgrade";
+  forged.upgrade = "websocket";
+  for (const k of Object.keys(proxyReq.getHeaders())) if (!(k in forged)) proxyReq.removeHeader(k);
+  for (const [k, v] of Object.entries(forged)) if (v != null) proxyReq.setHeader(k, v);
+}
 proxy.on("proxyReq", applyForge);
-proxy.on("proxyReqWs", applyForge);
+proxy.on("proxyReqWs", applyForgeWs);
 
 function decodeBody(body, encoding) {
   const enc = (encoding || "").toLowerCase().trim();
@@ -74,6 +81,8 @@ proxy.on("proxyRes", (proxyRes, req, res) => {
 proxy.on("error", (err, req, res) => {
   if (res && typeof res.writeHead === "function" && !res.headersSent) {
     res.writeHead(502, {"content-type":"text/plain"}); res.end("proxy error: " + err.message);
+  } else if (res && typeof res.destroy === "function") {
+    res.destroy();
   }
 });
 
